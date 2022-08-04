@@ -1,0 +1,11 @@
+use std::i32::I32_MAX;
+
+void change_a(i32 * a){
+    *a = I32_MAX;
+}
+
+i32 main{
+    i32 a = 0;
+    change_a(&a);
+    return 0;
+}

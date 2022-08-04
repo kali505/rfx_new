@@ -5,8 +5,7 @@ use std::fs;
 use std::io::Read;
 use std::path::Path;
 
-const RFX_HOME_DIR: &str = "~/.rfx";
-const SETTING_FILE: &str = "~/.rfx/setting.json";
+use super::port::{RFX_HOME_DIR, SETTING_FILE};
 
 fn create_rfx_dir() -> std::io::Result<()> {
     fs::create_dir(RFX_HOME_DIR)?;

@@ -1,0 +1,5 @@
+use abc;
+
+const char* hello (i64 n){
+    return abc::"abcdef";
+}

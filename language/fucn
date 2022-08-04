@@ -1,0 +1,4 @@
+u16 name(u8 arg1, u8 arg2)
+{
+    return arg1 << 8 | arg2;
+}

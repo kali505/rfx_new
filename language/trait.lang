@@ -1,20 +1,16 @@
-pub trait toiX for i8, i16, i32, i64, u8, u16, u32, u64, String{
+//pub trait: can be accessed everywhere
+//private trait: can be accessed only in this module and impl trait block
+
+pub trait toiX{
     Option<i8> to_i8(&self);
     Option<i16> to_i16(&self);
     Option<i32> to_i32(&self);
     Option<i64> to_i64(&self);
 }
 
-//trait for everything(_)
-pub trait size for _{
-    u64 getsize(&self);
-}
-
-...
-
 
 impl i8{
-    pub trait toiX{
+    impl trait toiX{
         Option<i8> to_i8(&self){
             return Some(self);
         }
@@ -30,27 +26,8 @@ impl i8{
     }
 }
 
-//error! Trait 'toiX' is not defined for type 'Hello'!
-impl Error{
-    pub trait toiX{
-        Option<i8> to_i8(&self){
-            ...
-        }
-        Option<i16> to_i16(&self){
-            ...
-        }
-        Option<i32> to_i32(&self){
-            ...
-        }
-        Option<i64> to_i64(&self){
-            ...
-        }
-    }
-}
-
-//error! Trait 'toiX' is public but implemented as private.
 impl i64{
-    trait toiX{
+    impl trait toiX{
         Option<i8> to_i8(&self){
             ...
         }

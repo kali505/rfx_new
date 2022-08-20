@@ -3,12 +3,13 @@ use std::str::CharIndices;
 use std::{fs::File, io::Seek, io::SeekFrom};
 
 #[allow(dead_code)]
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, strum_macros::Display)]
 pub enum TokenType {
     Null,
     Broken,
     String,
     Number,
+
     LogicEqual,
     LogicNotEqual,
     LogicAND,
@@ -67,6 +68,8 @@ pub enum TokenType {
     Bool,
 
     Const,
+    Impl,
+    Trait,
     Pub,
     Private,
 
@@ -81,9 +84,10 @@ pub enum TokenType {
     BrokenLongComment,
 }
 
+#[derive(Clone)]
 pub struct Token {
-    s: String,
-    tp: TokenType,
+    pub s: String,
+    pub tp: TokenType,
 }
 
 impl Token {
@@ -261,50 +265,18 @@ static SHORT_SP_OPERATOR: [TokenDict; 21] = [
         tp: TokenType::Semicolon,
     },
 ];
-static KEYWORDS: [TokenDict; 17] = [
-    TokenDict {
-        s: "i8",
-        tp: (TokenType::I8),
-    },
-    TokenDict {
-        s: "i16",
-        tp: (TokenType::I16),
-    },
-    TokenDict {
-        s: "i32",
-        tp: (TokenType::I32),
-    },
-    TokenDict {
-        s: "i64",
-        tp: (TokenType::I64),
-    },
-    TokenDict {
-        s: "u8",
-        tp: (TokenType::U8),
-    },
-    TokenDict {
-        s: "u16",
-        tp: (TokenType::U16),
-    },
-    TokenDict {
-        s: "u32",
-        tp: (TokenType::U32),
-    },
-    TokenDict {
-        s: "u64",
-        tp: (TokenType::U64),
-    },
-    TokenDict {
-        s: "char",
-        tp: (TokenType::Char),
-    },
-    TokenDict {
-        s: "bool",
-        tp: (TokenType::Bool),
-    },
+static KEYWORDS: [TokenDict; 9] = [
     TokenDict {
         s: "const",
         tp: (TokenType::Const),
+    },
+    TokenDict {
+        s: "impl",
+        tp: (TokenType::Impl),
+    },
+    TokenDict {
+        s: "trait",
+        tp: (TokenType::Trait),
     },
     TokenDict {
         s: "pub",
@@ -529,6 +501,29 @@ impl Lex for CharIndices<'_> {
         }
 
         let result: &str = &self.as_str()[0..token_end_index + 1];
+        if ret.tp == TokenType::Null {
+            let mut number = true;
+            let mut string = true;
+            if result.chars().nth(0).unwrap().is_ascii_digit() {
+                string = false;
+            }
+            for c in result.chars() {
+                if !c.is_ascii_digit() {
+                    number = false;
+                    if !c.is_ascii_alphabetic() && c != '_' {
+                        string = false;
+                    }
+                }
+                if !number && !string {
+                    break;
+                }
+            }
+            if number {
+                ret.tp = TokenType::Number;
+            } else if string {
+                ret.tp = TokenType::String;
+            }
+        }
         //check for keyword
         for dict in KEYWORDS.iter() {
             if result == dict.s {

@@ -1,0 +1,41 @@
+u8 a = 0;
+
+//const means you can't assign a value in this variable.
+const u8 b = 0;
+//example:
+//invalid: b = 111;
+//valid:   a = 111;
+
+//borrow:
+&u8 a_borrow = &a;
+&const u8 a_const_borrow = &a.const();
+//raw pointer:
+*u8 a_rawPtr = &a.to_raw();
+*const u8 a_const_rawPtr = &a.const().to_raw();// or &a.to_raw().const()
+
+//invalid:
+//const &u8 Err_Different_Mutability = &b;
+//       ^-- add const here.
+&const u8 b_borrow = &b;
+*const u8 b_rawPtr = &b.to_raw();
+
+
+//array type
+char[10] c_arr;
+&char[10] c_arr_borrow = &c_arr;
+c_arr[0] = 'H';
+assert(*c_arr_borrow[0] == 'H');
+
+
+//iterater
+use core::iter;
+iter<char> c_arr_iter = c_arr.iter();
+assert(c_arr_iter.rev().last() == Some('H'));
+
+c_arr_iter.next();
+assert(c_arr_iter.pos() == 1);
+assert(c_arr_iter.max_pos() == 10);
+assert(c_arr_iter.count() == 9);
+
+//you can collect iterator;
+c_arr_iter.collect();

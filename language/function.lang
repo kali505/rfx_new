@@ -1,0 +1,25 @@
+fn say(x: String){
+    print(x);
+}
+
+fn say_self(self: String){
+    print(self);
+}
+
+// You can use directly template to the argument's type
+// But in here, we define a type, 'printable'.
+type printable = template{ToString};
+fn say_all(things: Vec<printable>){
+    for x in things{
+        print(x.to_String());
+    }
+}
+
+// *** There's NO VARIADIC ARGUMENT! ***
+// Instead, I recommend you to use array and Vec<>
+// A good example is Vec::new_init([X, Y, Z])
+
+say("Hello, Function!");
+"Self!".say_self();
+var numbers: Vec<String> = Vec::new_init(["1", "2", "3"]);
+say_all(numbers);

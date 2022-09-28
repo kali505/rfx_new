@@ -1,44 +1,12 @@
-//pub trait: can be accessed everywhere
-//private trait: can be accessed only in this module and impl trait block
-
-pub trait toiX{
-    Option<i8> to_i8(&self);
-    Option<i16> to_i16(&self);
-    Option<i32> to_i32(&self);
-    Option<i64> to_i64(&self);
+trait kill{
+    fn kill(x: self);
 }
 
-
-impl i8{
-    impl trait toiX{
-        Option<i8> to_i8(&self){
-            return Some(self);
-        }
-        Option<i16> to_i16(&self){
-            return Some(self as i16);
-        }
-        Option<i32> to_i32(&self){
-            return Some(self as i32);
-        }
-        Option<i64> to_i64(&self){
-            return Some(self as i64);
-        }
+impl kill for u64{
+    fn kill(x: self){
+        x = 0xDEAD;
     }
 }
 
-impl i64{
-    impl trait toiX{
-        Option<i8> to_i8(&self){
-            ...
-        }
-        Option<i16> to_i16(&self){
-            ...
-        }
-        Option<i32> to_i32(&self){
-            ...
-        }
-        Option<i64> to_i64(&self){
-            ...
-        }
-    }
-}
+var covid: u64 = 0xC0B1D19;
+covid.kill();   // I hope to... :)

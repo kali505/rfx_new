@@ -4,6 +4,7 @@ use std::path::Path;
 mod ast;
 mod lex;
 mod parser;
+mod syntax;
 
 pub fn build_c(rfxfile: String, outdir: String, cfile: String) {}
 

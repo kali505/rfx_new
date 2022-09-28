@@ -11,11 +11,20 @@ use super::lex::Token;
 #[derive(Clone)]
 pub enum ASTtype {
     Super,
+    CallFunction,
+    CallFunction_arg,
+    Bunch,
     Fucntion,
+    FnIdent,
+    FnRetType,
     CodeBlock,
     Match,
     MatchCase,
+    If,
+    For,
+    While,
     Return,
+    Trait,
     VariableAttr, // const, static...
     VariableType,
     VariableName,
@@ -36,35 +45,22 @@ impl AST {
             next: Vec::new(),
         }
     }
+
+    //pub fn push_next(self, tp: ASTtype, t: Token) -> &'static mut AST {}
 }
 
 /*
-Fucntion      -> 4 entry (return type, name, args, code, next)
+CallFunction -> name, args..., next
+
+
+Fucntion      -> 4 entry (name, args, return type, code, next)
 CodeBlock -> ? entry (codes...)
 Match   -> ? entry (value, cases...)
 MatchCase    -> 3 entry (value, code)
-if      -> 2 entry (code, next)
-for     -> 2 entry (variable, range, code)
-while   -> 2 entry (condition, code)
-return  -> 1 entry (value)
+If      -> 2 entry (code, next)
+For     -> 2 entry (variable, range, code)
+While   -> 2 entry (condition, code)
+Return  -> 1 entry (value)
 
 etc     -> 1 entry (next)
 */
-
-// main -> build_rfx_ast -> parse AST
-fn build_rfx_ast(f: &mut BufReader<File>) -> Result<AST, &str> {
-    let mut ret = AST::new();
-    let t = f.lex();
-    let unwrap_t;
-
-    if t.is_none() {
-        return Err("Unexpected EOF.");
-    }
-
-    unwrap_t = t.unwrap();
-    match unwrap_t.tp {
-        _ => {}
-    }
-
-    return Ok(ret);
-}

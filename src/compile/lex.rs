@@ -1,6 +1,6 @@
+use std::fs::File;
 use std::io::{BufRead, BufReader};
-use std::str::CharIndices;
-use std::{fs::File, io::Seek, io::SeekFrom};
+use std::str::Chars;
 
 #[allow(dead_code)]
 #[derive(PartialEq, Clone, Copy, strum_macros::Display)]
@@ -24,6 +24,7 @@ pub enum TokenType {
     LeftABrack,
     RightABrack,
 
+    Equal,
     Bang,
 
     Plus,
@@ -53,19 +54,10 @@ pub enum TokenType {
     Quote,
     DblQuote,
     Dot,
+    Comma,
     Semicolon,
     DblColon,
-
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-    Char,
-    Bool,
+    Arrow,
 
     Const,
     Impl,
@@ -78,10 +70,11 @@ pub enum TokenType {
     For,
 
     Use,
+    Fn,
 
     LineComment,
     LongComment,
-    BrokenLongComment,
+    BrokenLeftLongComment,
 }
 
 #[derive(Clone)]
@@ -105,7 +98,7 @@ struct TokenDict<'a> {
     tp: TokenType,
 }
 
-static LONG_SP_OPERATOR: [TokenDict; 18] = [
+static LONG_SP_OPERATOR: &'static [TokenDict] = &[
     TokenDict {
         s: "==",
         tp: TokenType::LogicEqual,
@@ -178,8 +171,12 @@ static LONG_SP_OPERATOR: [TokenDict; 18] = [
         s: "::",
         tp: TokenType::DblColon,
     },
+    TokenDict {
+        s: "->",
+        tp: TokenType::Arrow,
+    },
 ];
-static SHORT_SP_OPERATOR: [TokenDict; 21] = [
+static SHORT_SP_OPERATOR: &'static [TokenDict] = &[
     TokenDict {
         s: "(",
         tp: TokenType::LeftParen,
@@ -211,6 +208,10 @@ static SHORT_SP_OPERATOR: [TokenDict; 21] = [
     TokenDict {
         s: ">",
         tp: TokenType::RightABrack,
+    },
+    TokenDict {
+        s: "=",
+        tp: TokenType::Equal,
     },
     TokenDict {
         s: "!",
@@ -261,11 +262,15 @@ static SHORT_SP_OPERATOR: [TokenDict; 21] = [
         tp: TokenType::Dot,
     },
     TokenDict {
+        s: ",",
+        tp: TokenType::Comma,
+    },
+    TokenDict {
         s: ";",
         tp: TokenType::Semicolon,
     },
 ];
-static KEYWORDS: [TokenDict; 9] = [
+static KEYWORDS: &'static [TokenDict] = &[
     TokenDict {
         s: "const",
         tp: (TokenType::Const),
@@ -302,208 +307,244 @@ static KEYWORDS: [TokenDict; 9] = [
         s: "use",
         tp: (TokenType::Use),
     },
+    TokenDict {
+        s: "fn",
+        tp: (TokenType::Fn),
+    },
 ];
 
-fn consume_until(c: &mut CharIndices<'_>, end: usize) {
-    while let Some((i, _)) = c.next() {
-        if i == end {
-            break;
+struct LexStream {
+    line: u64,
+    col: u64,
+    eof: bool,
+    eol: bool,
+    reader: BufReader<File>,
+    linebuf: String,
+}
+
+impl LexStream {
+    pub fn new(f: File) -> Self {
+        Self {
+            line: 0,
+            col: 0,
+            eof: false,
+            eol: false,
+            reader: BufReader::new(f),
+            linebuf: String::new(),
         }
+    }
+
+    pub fn line(&self) -> u64 {
+        self.line
+    }
+
+    pub fn col(&self) -> u64 {
+        self.col
+    }
+
+    pub fn is_eof(&self) -> bool {
+        self.eof
+    }
+
+    fn is_eol(&self) -> bool {
+        self.eol
+    }
+
+    fn new_line(&mut self) {
+        if self.reader.read_line(&mut self.linebuf).unwrap() == 0 {
+            self.eof = true;
+        }
+
+        self.eol = false;
+        self.line += 1;
+        self.col = 0;
     }
 }
 
 pub trait Lex {
+    fn peek(&mut self) -> Option<Token>;
     fn lex(&mut self) -> Option<Token>;
 }
 
-impl Lex for BufReader<File> {
+impl Lex for LexStream {
     fn lex(&mut self) -> Option<Token> {
-        let self_start = self.stream_position().unwrap();
-        let mut s: String = String::new();
-        let mut s_ci;
-        let s_start;
-        let token;
+        let token: Option<Token>;
+        let mut siter;
 
-        if self.read_line(&mut s).unwrap() == 0 {
-            // End of File
+        if self.is_eof() {
             return None;
+        } else if self.is_eol() {
+            self.new_line();
         }
 
-        s_ci = s.char_indices();
-        s_start = s_ci.clone().peekable().peek().unwrap().0;
+        siter = self.linebuf.chars();
+        token = siter.lex();
 
-        token = s_ci.lex();
         if token.is_none() {
-            let s_end = s.char_indices().count();
-            self.seek(SeekFrom::Start(self_start + (s_end - s_start) as u64))
-                .unwrap();
+            // End of Line
+            self.new_line();
             return self.lex();
         }
 
-        if s_ci.clone().peekable().peek().is_none() {
-            // End of Line & End of File
-            self.seek(SeekFrom::End(0)).unwrap();
-        } else {
-            let s_end = s_ci.clone().peekable().peek().unwrap().0;
-            self.seek(SeekFrom::Start(self_start + (s_end - s_start) as u64))
-                .unwrap();
-        }
-
+        self.col += self.linebuf.chars().count() as u64 - siter.clone().count() as u64;
+        self.linebuf = siter.collect();
         let unwrap_ret = token.unwrap();
         return Some(unwrap_ret);
     }
+
+    fn peek(&mut self) -> Option<Token> {
+        return self.linebuf.chars().peek();
+    }
 }
 
-impl Lex for CharIndices<'_> {
+impl Lex for Chars<'_> {
+    fn peek(&mut self) -> Option<Token> {
+        return self.clone().lex();
+    }
+
     fn lex(&mut self) -> Option<Token> {
-        let token_end_index;
         let mut ret = Token::new();
-        let start;
+        let mut lex_iter;
 
         //skip whitespace
         loop {
-            if self.clone().peekable().peek().is_none() {
+            let c = self.clone().next();
+            if c.is_none() {
                 //<whitespace><end of string>
                 return None;
             }
-            if !self.clone().peekable().peek().unwrap().1.is_whitespace() {
-                start = self.clone().peekable().peek().unwrap().0;
+            if !c.unwrap().is_whitespace() {
                 break;
             }
+
             self.next();
         }
 
         //remove comment
-        if self.clone().as_str()[0..].len() >= 2 {
+        if self.clone().count() >= 2 {
             // checked length
-            let s = &self.clone().as_str()[0..2];
-            if s.eq("//") {
-                //one line comment
-                let mut iter_short_comment = self.clone();
-                let mut i = 0;
+            let s: String = self.clone().take(2).collect();
+            if s == "//" {
+                //skip '//'
+                self.next();
+                self.next();
+
+                //skip one line
                 loop {
-                    let e = iter_short_comment.next();
+                    let e = self.next();
                     if e.is_none() {
-                        token_end_index = self.as_str().len() - 1;
-                        break;
+                        return None;
                     }
 
-                    let c = e.unwrap().1;
+                    let c = e.unwrap();
                     if c == '\n' {
-                        token_end_index = i - 1;
                         break;
                     }
-                    i += 1;
                 }
-                ret.s = self.as_str()[0..token_end_index + 1].to_string();
-                consume_until(self, start + token_end_index);
-
-                return Some(ret);
-            } else if s.eq("/*") {
+            } else if s == "/*" {
                 //long comment
+                let self_save = self.clone();
                 let mut iter_long_comment = self.clone().zip(self.clone().skip(1));
-                let mut i = 0;
                 loop {
                     let e = iter_long_comment.next();
                     if e.is_none() {
-                        token_end_index = self.as_str().len() - 1;
-                        ret.tp = TokenType::BrokenLongComment;
-                        break;
+                        ret.tp = TokenType::BrokenLeftLongComment;
+                        ret.s = self
+                            .take(self_save.count() - iter_long_comment.count())
+                            .collect();
+                        return Some(ret);
                     }
 
                     let (c1, c2) = e.unwrap();
-                    if c1.1 == '*' && c2.1 == '/' {
-                        token_end_index = i + 1;
-                        ret.tp = TokenType::LongComment;
+                    if c1 == '*' && c2 == '/' {
                         break;
                     }
-                    i += 1;
                 }
-                ret.s = self.as_str()[0..token_end_index + 1].to_string();
-                consume_until(self, start + token_end_index);
-
-                return Some(ret);
             }
         }
-
-        //start lex
-        let mut i = 0;
+        //skip whitespace
         loop {
-            let e = self.clone().nth(i);
-            if e.is_none() {
-                token_end_index = self.as_str().len() - 1;
+            let c = self.clone().next();
+            if c.is_none() {
+                //<whitespace><end of string>
+                return None;
+            }
+            if !c.unwrap().is_whitespace() {
                 break;
             }
 
-            let curr_char = e.unwrap().1;
+            self.next();
+        }
 
+        //this is start
+        lex_iter = self.clone();
+
+        //start lex
+        'end_lex: while let Some(curr_char) = lex_iter.clone().next() {
             if curr_char.is_whitespace() {
-                token_end_index = i - 1;
                 break;
             }
 
             //treat _ as alphabet
             if !curr_char.is_ascii_alphanumeric() && curr_char != '_' {
                 //special char
-                if i != 0 {
+                if !lex_iter.clone().eq(self.clone()) {
                     //<alphabets><special char(= curr_char)>
-                    token_end_index = i - 1;
                     break;
                 }
 
-                let max_len = self.clone().as_str()[i..].len();
+                let max_len = lex_iter.clone().count();
                 //check for long operator
-                let mut d: Option<TokenDict> = None;
                 for dict in LONG_SP_OPERATOR.iter() {
                     if max_len >= dict.s.len()
-                        && self.clone().as_str()[i..i + dict.s.len() - 1] == *dict.s
+                        && lex_iter
+                            .clone()
+                            .take(dict.s.chars().count())
+                            .collect::<String>()
+                            == *dict.s
                     {
-                        d = Some(dict.clone());
-                        break;
+                        let found = dict;
+                        ret.tp = found.tp;
+                        ret.s = dict.s.to_string();
+                        for _i in 0..dict.s.chars().count() {
+                            lex_iter.next();
+                        }
+                        break 'end_lex;
                     }
-                }
-
-                if d != None {
-                    let found = d.unwrap();
-                    ret.tp = found.tp;
-                    token_end_index = i + found.s.len() - 1;
-                    break;
                 }
 
                 //check for short operator
                 for dict in SHORT_SP_OPERATOR.iter() {
                     if curr_char == dict.s.chars().nth(0).unwrap() {
-                        d = Some(dict.clone());
+                        let found = dict;
+                        ret.tp = found.tp;
+                        ret.s = dict.s.to_string();
+                        lex_iter.next();
+                        break 'end_lex;
+                    }
+                }
+
+                //cannot find matching operator
+                while let Some(spc) = lex_iter.clone().next() {
+                    if spc.is_alphanumeric() || spc.is_whitespace() || spc == '_' {
                         break;
                     }
+                    lex_iter.next();
                 }
-
-                if d != None {
-                    let found = d.unwrap();
-                    ret.tp = found.tp;
-                    token_end_index = i;
-                    break;
-                } else {
-                    //cannot find matching operator
-                    let mut clen = 0;
-                    for spc in self.clone().skip(i) {
-                        if spc.1.is_alphanumeric() || spc.1.is_whitespace() {
-                            break;
-                        }
-                        clen += 1;
-                    }
-                    ret.tp = TokenType::Broken;
-                    token_end_index = i + clen - 1;
-                    break;
-                }
+                ret.tp = TokenType::Broken;
+                break;
             }
-            i += 1;
+
+            lex_iter.next();
         }
 
-        let result: &str = &self.as_str()[0..token_end_index + 1];
+        let result: String = self
+            .take(self.clone().count() - lex_iter.clone().count())
+            .collect();
         if ret.tp == TokenType::Null {
             let mut number = true;
             let mut string = true;
+
             if result.chars().nth(0).unwrap().is_ascii_digit() {
                 string = false;
             }
@@ -532,8 +573,8 @@ impl Lex for CharIndices<'_> {
             }
         }
 
-        ret.s = result.to_string();
-        consume_until(self, start + token_end_index);
+        ret.s = result;
+        *self = lex_iter;
         return Some(ret);
     }
 }
@@ -543,12 +584,12 @@ mod tests {
     use crate::compile::lex::Lex;
     use std::fs::File;
     use std::io::stdout;
-    use std::io::BufReader;
-    use std::io::Seek;
     use std::io::Write;
 
+    use super::LexStream;
+
     #[test]
-    fn test_lex_char_indices() {
+    fn test_lex_char() {
         let test_str = r#"
         #[cfg(test)]
         mod tests {
@@ -572,16 +613,16 @@ mod tests {
                 }
             }
         }"#;
-        let mut str_ci = test_str.char_indices();
+        let mut str_chars = test_str.chars();
         let mut i = 0;
         loop {
             i += 1;
-            let token = str_ci.lex();
+            let token = str_chars.lex();
             if token.is_none() {
                 break;
             }
             let unwrap_token = token.unwrap();
-            println!("{}: \'{}\'", i, unwrap_token.s);
+            println!("{}, {}: \'{}\'", i, unwrap_token.tp, unwrap_token.s);
             stdout().flush().unwrap();
         }
     }
@@ -589,21 +630,15 @@ mod tests {
     #[test]
     fn test_lex_file() {
         let test_file = File::open("test/lex.test").unwrap();
-        let mut file_reader = BufReader::new(test_file);
-        let mut i = 0;
+        let mut lexs = LexStream::new(test_file);
+
         loop {
-            i += 1;
-            let token = file_reader.lex();
-            if token.is_none() {
+            let token = lexs.lex();
+            if token.is_none() || lexs.is_eof() {
                 break;
             }
             let unwrap_token = token.unwrap();
-            println!(
-                "{}, {}: \'{}\'",
-                i,
-                file_reader.stream_position().unwrap(),
-                unwrap_token.s
-            );
+            println!("{}, {}: \'{}\'", lexs.line(), lexs.col(), unwrap_token.s);
             stdout().flush().unwrap();
         }
     }

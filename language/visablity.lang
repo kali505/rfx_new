@@ -1,0 +1,20 @@
+pub fn public_fn(){
+    print(
+"This is pub function.
+This can be accessed on any file which imported this object."
+    );
+}
+
+private fn private_fn(){
+    print(
+"This is private function.
+This can be ONLY accessed in this file."
+    );
+}
+
+fn default_fn(){
+    print(
+"This is private function.
+Default visability is private"
+    );
+}
